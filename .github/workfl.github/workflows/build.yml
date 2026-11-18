@@ -1,9 +1,8 @@
 name: Build APK from zip
 
 on:
-  workflow_dispatch:
   push:
-    paths: [ 'hajimi.zip' ]
+  workflow_dispatch:
 
 jobs:
   build:
