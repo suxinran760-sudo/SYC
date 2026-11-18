@@ -1,0 +1,50 @@
+name: Build APK from zip
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [ 'hajimi.zip' ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip project
+        run: |
+          rm -rf /tmp/x && mkdir /tmp/x
+          unzip -q -o hajimi.zip -d /tmp/x
+          SRC=/tmp/x
+          if [ "$(ls -A /tmp/x | wc -l)" -eq 1 ] && [ -d "/tmp/x/$(ls -A /tmp/x)" ]; then SRC="/tmp/x/$(ls -A /tmp/x)"; fi
+          cp -a "$SRC"/. .
+          ls -la
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - run: npx cap add android
+      - run: npx capacitor-assets generate --android
+      - name: Patch Android
+        run: |
+          sed -i '0,/<activity/s//<activity android:screenOrientation="sensorLandscape"/' android/app/src/main/AndroidManifest.xml
+          JAVA=$(find android/app/src/main/java -name MainActivity.java | head -n 1)
+          cp scripts/MainActivity.java "$JAVA"
+      - run: npx cap sync android
+      - name: Gradle build
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/hajimi-fps.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hajimi-fps-apk
+          path: out/hajimi-fps.apk
